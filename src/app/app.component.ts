@@ -45,7 +45,7 @@ export class AppComponent {
     return this.toolbarText;
   }
   toolbarColor = 'primary';
-  toolbarText = 'אמהות מחבקות אבן יהודה והסביבה';
+  toolbarText = 'סלי תקווה';
   signOut() {
 
     this.routeClicked();
