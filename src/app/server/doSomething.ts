@@ -13,13 +13,8 @@ serverInit();
 
 export async function DoIt() {
     try {
-
-        let f = new Families();
-        let rows = await f.source.find({
-            where: f.courier.isEqualTo('907b247b-dcdb-4e0a-8c54-e9a19cc95eb3').and(f.deliverStatus.isEqualTo(DeliveryStatus.ReadyForDelivery.id))
-        })
-        await AddBoxAction.optimizeRoute(rows);
-
+        ImportFromExcel()
+        
         console.log('123');
         //        new SendSmsUtils().sendSms('0507330590', 'test2');
     }
@@ -43,8 +38,8 @@ async function getGeolocationInfo() {
 }
 async function ImportFromExcel() {
 
-    let wb = XLSX.readFile("C:\\Users\\Yoni\\Downloads\\xxx.xlsx");
-    let s = wb.Sheets[wb.SheetNames[1]];
+    let wb = XLSX.readFile("C:\\temp\\ListTikva.xlsx");
+    let s = wb.Sheets[wb.SheetNames[0]];
     let o = XLSX.utils.sheet_to_json(s);
     let found = true;
     await foreachSync(o, async r => {
@@ -59,7 +54,8 @@ async function ImportFromExcel() {
             f.appartment.value = r["דירה"];
             f.address.value = (get("כתובת") + ' ' + get("מספר").trim() + ' ' + get("עיר"));
             f.familyMembers.value = +r["מס' נפשות"];
-            f.name.value = (get("שם משפחה") + " " + get("שם פרטי")).trim();
+            f.name.value = r["שם מלא"];
+            f.floor.value= r["קומה"];
             if (!f.name.value) {
                 f.name.value = '!ללא שם ';
             }

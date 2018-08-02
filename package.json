@@ -1,11 +1,11 @@
 {
-  "name": "hug-moms",
+  "name": "TikvaBasket",
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
     "ng": "ng",
     "gc": "ng generate component --spec false",
-    "ng-serve": "ng serve --host 10.0.0.6",
+    "ng-serve": "ng serve",
     "start": "npm run server:execute",
     "start_old": "ts-node --project tsconfig.server.json src/app/server/server.ts",
     "start_dev": "concurrently \"ng serve\" \"npm run server:watch\"",
