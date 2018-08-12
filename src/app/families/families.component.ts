@@ -34,15 +34,10 @@ export class FamiliesComponent implements OnInit {
   }
   public pieChartLabels: string[] = [];
   public pieChartData: number[] = [];
+  pieChartStatObjects: FaimilyStatistics[] = [];
   public colors: Array<any> = [
     {
-      backgroundColor: [
-
-        '#FDE098'//yello
-        , '#84C5F1'//blue
-        , '#91D7D7'//green
-        , '#FD9FB3'//red
-      ]
+      backgroundColor: []
 
     }];
 
@@ -55,7 +50,7 @@ export class FamiliesComponent implements OnInit {
     legend: {
       position: 'right',
       onClick: (event: MouseEvent, legendItem: any) => {
-        this.currentStatFilter = this.statTabs[this.myTab.selectedIndex].stats[legendItem.index];
+        this.currentStatFilter = this.pieChartStatObjects[legendItem.index];
         this.families.getRecords();
         return false;
       }
@@ -63,7 +58,7 @@ export class FamiliesComponent implements OnInit {
   };
   public chartClicked(e: any): void {
     if (e.active && e.active.length > 0) {
-      this.currentStatFilter = this.statTabs[this.myTab.selectedIndex].stats[e.active[0]._index];
+      this.currentStatFilter = this.pieChartStatObjects[e.active[0]._index];
       this.families.getRecords();
     }
   }
@@ -125,12 +120,24 @@ export class FamiliesComponent implements OnInit {
     XLSX.writeFile(wb, 'משפחות.xlsx');
     return;
   }
-
+  familyDeliveryEventsView = new FamilyDeliveryEventsView();
   previousDeliveryEvents: FamilyDeliveryEventsView[] = [];
   families = new GridSettings(new Families(), {
 
     allowUpdate: true,
     allowInsert: true,
+    rowCssClass: f => {
+      switch (f.deliverStatus.listValue) {
+        case DeliveryStatus.Success:
+          return 'deliveredOk';
+        case DeliveryStatus.FailedBadAddress:
+        case DeliveryStatus.FailedNotHome:
+        case DeliveryStatus.FailedOther:
+          return 'deliveredProblem';
+        default:
+          return '';
+      }
+    },
     numOfColumnsInGrid: 5,
     onEnterRow: async f => {
       if (f.isNew()) {
@@ -140,9 +147,9 @@ export class FamiliesComponent implements OnInit {
         f.callStatus.listValue = CallStatus.NotYet;
         f.special.listValue = YesNo.No;
       } else {
-        let p = new FamilyDeliveryEventsView();
+
         await this.busy.donotWait(async () =>
-          this.previousDeliveryEvents = await p.source.find({ where: p.family.isEqualTo(f.id), orderBy: [{ column: p.deliveryDate, descending: true }] }));
+          this.previousDeliveryEvents = await this.familyDeliveryEventsView.source.find({ where: this.familyDeliveryEventsView.family.isEqualTo(f.id), orderBy: [{ column: this.familyDeliveryEventsView.deliveryDate, descending: true }] }));
       }
     },
 
@@ -332,7 +339,7 @@ export class FamiliesComponent implements OnInit {
   });
   gridView = true;
   constructor(private dialog: SelectService, private san: DomSanitizer, public busy: BusyService) {
-    console.log('families component');
+
     let y = dialog.newsUpdate.subscribe(() => {
       this.refreshStats();
     });
@@ -353,6 +360,7 @@ export class FamiliesComponent implements OnInit {
       rule: f => f.deliverStatus.IsDifferentFrom(DeliveryStatus.NotInEvent.id),
       stats: [
         this.stats.ready,
+        this.stats.special,
         this.stats.onTheWay,
         this.stats.delivered,
         this.stats.problem,
@@ -375,7 +383,7 @@ export class FamiliesComponent implements OnInit {
         this.stats.currentEvent,
         this.stats.notInEvent
       ]
-    },
+    }/*,
     {
       name: 'טלפניות',
       rule: f => f.deliverStatus.IsDifferentFrom(DeliveryStatus.NotInEvent.id),
@@ -385,7 +393,7 @@ export class FamiliesComponent implements OnInit {
         this.stats.phoneOk,
         this.stats.phoneFailed
       ]
-    }
+    }*/
 
   ]
   tabChanged() {
@@ -396,12 +404,18 @@ export class FamiliesComponent implements OnInit {
 
   updateChart() {
     this.pieChartData = [];
+    this.pieChartStatObjects = [];
     this.pieChartLabels.splice(0);
+    this.colors[0].backgroundColor.splice(0);
     let stats = this.statTabs[this.myTab.selectedIndex].stats;
 
     stats.forEach(s => {
-      this.pieChartLabels.push(s.name + ' ' + s.value);
-      this.pieChartData.push(s.value);
+      if (s.value > 0) {
+        this.pieChartLabels.push(s.name + ' ' + s.value);
+        this.pieChartData.push(s.value);
+        this.colors[0].backgroundColor.push(s.color);
+        this.pieChartStatObjects.push(s);
+      }
     });
   }
   refreshStats() {
@@ -427,7 +441,7 @@ export class FamiliesComponent implements OnInit {
 
   static route = 'families';
   static caption = 'משפחות';
-  
+
   [reuseComponentOnNavigationAndCallMeWhenNavigatingToIt]() {
     this.families.getRecords();
     this.refreshStats();

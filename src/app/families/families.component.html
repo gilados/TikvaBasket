@@ -1,3 +1,4 @@
+
 <mat-tab-group #myTab (selectChange)="tabChanged()" [selectedIndex]="0">
     <mat-tab *ngFor="let t of statTabs" label="{{t.name}} - {{statTotal(t)}}"> </mat-tab>
 
@@ -8,7 +9,7 @@
             (chartClick)="chartClicked($event)"></canvas>
     </div>
 </div>
-<h4 *ngIf="currentStatFilter">{{currentStatFilter.name}} - </h4>
+<h4 *ngIf="currentStatFilter">{{currentStatFilter.name}}:</h4>
 <mat-form-field class="full-width">
     <input matInput [(ngModel)]="searchString" (input)="doSearch()" placeholder="חיפוש משפחה" [ngModelOptions]="{standalone: true}">
     <mat-icon matSuffix (click)="clearSearch()">clear</mat-icon>
@@ -20,9 +21,9 @@
     <div class="table-responsive">
 
         <data-grid [settings]="families"></data-grid>
-     
+
         <button (click)="saveToExcel()">יצוא לאקסל</button>
-        
+
     </div>
 </mat-card>
 <button (click)="families.previousRow()" [disabled]="families.currentRow&& families.currentRow.wasChanged()||!families.previousRowAllowed()"
@@ -30,8 +31,10 @@
 <button (click)="families.nextRow()" [class.hide]="gridView" [disabled]="families.currentRow&&families.currentRow.wasChanged()"
     class="btn glyphicon glyphicon-chevron-right"></button>
 <button (click)="gridView = !gridView" [class.hide]="gridView" class="btn glyphicon glyphicon-list-alt" title="חזרה לרשימה"></button>
+<button [class.hide]="gridView" class="btn glyphicon glyphicon glyphicon-filter" (click)="dataFilter.userFilterButton()"></button>
 <button (click)="families.addNewRow()" [class.hide]="gridView" [disabled]="families.currentRow&&families.currentRow.wasChanged()"
     class="btn btn-primary glyphicon glyphicon-plus"></button>
+<Data-Filter [settings]="families"  #dataFilter></Data-Filter>
 
 <div [class.hide]="gridView" *ngIf="families.currentRow">
 
@@ -107,7 +110,7 @@
             <data-area [settings]="deliverInfo"></data-area>
         </mat-expansion-panel>
 
-        <mat-expansion-panel>
+     <!--   <mat-expansion-panel>
             <mat-expansion-panel-header>
                 <div>
                     <mat-panel-title>
@@ -122,7 +125,7 @@
 
             </mat-expansion-panel-header>
             <data-area [settings]="callInfo"></data-area>
-        </mat-expansion-panel>
+        </mat-expansion-panel>-->
         <mat-expansion-panel>
             <mat-expansion-panel-header>
                 <div>
@@ -156,6 +159,7 @@
     <button (click)="families.nextRow()" [class.hide]="gridView" [disabled]="families.currentRow&&families.currentRow.wasChanged()"
         class="btn glyphicon glyphicon-chevron-right"></button>
     <button (click)="gridView = !gridView" [class.hide]="gridView" class="btn glyphicon glyphicon-list-alt"></button>
+    <button [class.hide]="gridView" class="btn glyphicon glyphicon glyphicon-filter" (click)="dataFilter.userFilterButton()"></button>
     <button (click)="families.addNewRow()" [class.hide]="gridView" [disabled]="families.currentRow&&families.currentRow.wasChanged()"
         class="btn btn-primary glyphicon glyphicon-plus"></button>
 </div>

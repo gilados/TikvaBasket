@@ -1,7 +1,7 @@
 <mat-sidenav-container class="app-sidenav-container">
   <mat-sidenav #sidenav class="app-sidenav mat-elevation-z10 no-print" [opened]="!dialog.isScreenSmall()" [mode]="dialog.isScreenSmall()?'over':'side'">
     <div style="width:100%;text-align: center">
-      <img style="width:100%" src="https://שומרון.com/wp-content/uploads/2016/05/2522.jpg"
+      <img src="{{getLogo()}}"
       />
     </div>
     <h4 *ngIf="auth.auth.info">שלום {{auth.auth.info.name}}</h4>

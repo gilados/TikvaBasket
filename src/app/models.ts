@@ -312,7 +312,7 @@ export class DeliveryStatusColumn extends radweb.ClosedListColumn<DeliveryStatus
 export class DeliveryStatus {
   static ReadyForDelivery: DeliveryStatus = new DeliveryStatus(0, 'מוכן למשלוח');
   static Success: DeliveryStatus = new DeliveryStatus(11, 'נמסר בהצלחה');
-  static FailedBadAddress: DeliveryStatus = new DeliveryStatus(21, 'לא נמסר, בעייה בכתובת');
+  static FailedBadAddress: DeliveryStatus = new DeliveryStatus(21, 'לא נמסר, בעיה בכתובת');
   static FailedNotHome: DeliveryStatus = new DeliveryStatus(23, 'לא נמסר, לא היו בבית');
   static FailedOther: DeliveryStatus = new DeliveryStatus(25, 'לא נמסר, אחר');
   static Frozen: DeliveryStatus = new DeliveryStatus(90, 'מוקפא');
@@ -383,7 +383,7 @@ export class Helpers extends IdEntity<HelperId>{
   });
   phone = new radweb.StringColumn({ caption: "טלפון", inputType: 'tel' });
   realStoredPassword = new radweb.StringColumn({ dbName: 'password' });
-  password = new radweb.StringColumn({ caption: 'סיסמה', inputType: 'password', virtualData: () => Helpers.emptyPassword });
+  password = new radweb.StringColumn({ caption: 'סיסמה', inputType: 'password', virtualData: () => this.realStoredPassword.value ? Helpers.emptyPassword : '' });
 
   createDate = new changeDate('מועד הוספה');
   smsDate = new changeDate('מועד משלוח SMS');
@@ -432,7 +432,7 @@ export class Families extends IdEntity<FamilyId>{
   name = new radweb.StringColumn({
     caption: "שם",
     onValidate: v => {
-      if (!v.value || v.value.length < 3)
+      if (!v.value || v.value.length < 2)
         this.name.error = 'השם קצר מידי';
     }
   });
@@ -445,7 +445,7 @@ export class Families extends IdEntity<FamilyId>{
 
 
   address = new radweb.StringColumn("כתובת");
-  floor = new radweb.StringColumn(' קומה');
+  floor = new radweb.StringColumn('קומה');
   appartment = new radweb.StringColumn('דירה');
   addressComment = new radweb.StringColumn('הערת כתובת');
   deliveryComments = new radweb.StringColumn('הערות למשנע');
@@ -486,13 +486,9 @@ export class Families extends IdEntity<FamilyId>{
   addressByGoogle() {
     let r: ColumnSetting<Families> = {
       caption: 'כתובת כפי שגוגל הבין',
-      getValue: f => {
-        let result = '';
-        let g = f.getGeocodeInformation();
-        if (!g.ok())
-          return '!!! NOT OK!!!';
-        return f.getGeocodeInformation().info.results[0].formatted_address;
-      }
+      getValue: f => f.getGeocodeInformation().getAddress()
+
+
     }
     return r;
   }
@@ -714,20 +710,37 @@ function buildSql(...args: any[]): string {
   });
   return result;
 }
+let fromFamilies = (h: Helpers) => buildSql(' from ', f
+  , ' where ', f.courier, ' = ', h, '.', h.id);
 
-let fromFamiliesWhereId = (h: Helpers) => buildSql(' from ', f
-  , ' where ', f.courier, ' = ', h, '.', h.id, ' and ', f.deliverStatus, ' = ', DeliveryStatus.ReadyForDelivery.id)
+let fromFamiliesWithCourierAndStatus = (h: Helpers, s: DeliveryStatus) => buildSql(fromFamilies(h), ' and ', f.deliverStatus, ' = ', s.id);
+
+let fromFamiliesWithCourierAndReady = (h: Helpers) => fromFamiliesWithCourierAndStatus(h, DeliveryStatus.ReadyForDelivery);
 
 
 export class HelpersAndStats extends Helpers {
   deliveriesInProgress = new NumberColumn({
     dbReadOnly: true,
     caption: 'משפחות מחכות',
-    dbName: buildSql('(select count(*) ', fromFamiliesWhereId(this), ')')
+    dbName: buildSql('(select count(*) ', fromFamiliesWithCourierAndReady(this), ')')
+  });
+  allFamilies = new NumberColumn({
+    dbReadOnly: true,
+    caption: 'משפחות',
+    dbName: buildSql('(select count(*) ', fromFamilies(this), ')')
+  });
+  deliveriesWithProblems = new NumberColumn({
+    dbReadOnly: true,
+    caption: 'משפחות עם בעיות',
+    dbName: buildSql('(select count(*) ', buildSql(fromFamilies(this), ' and ', f.deliverStatus, ' in (', [
+      DeliveryStatus.FailedBadAddress.id,
+      DeliveryStatus.FailedNotHome.id,
+      DeliveryStatus.FailedOther.id
+    ], ')'), ')')
   });
   firstDeliveryInProgressDate = new DateTimeColumn({
     dbReadOnly: true,
-    dbName: buildSql('(select min(', f.courierAssingTime, ') ', fromFamiliesWhereId(this), ')')
+    dbName: buildSql('(select min(', f.courierAssingTime, ') ', fromFamiliesWithCourierAndReady(this), ')')
   })
     ;
   constructor() {
@@ -833,5 +846,68 @@ export class FamilySources extends IdEntity<FamilySourceId>{
 
     super(new FamilySourceId(), () => new FamilySources(), evilStatics.dataSource, "FamilySources");
     this.initColumns();
+  }
+}
+export class ApplicationSettings extends Entity<number>{
+  id = new radweb.NumberColumn();
+  organisationName = new radweb.StringColumn('שם הארגון');
+  smsText = new radweb.StringColumn('תוכן הודעת SMS');
+  logoUrl = new radweb.StringColumn('לוגו URL');
+  address = new radweb.StringColumn("כתובת מרכז השילוח");
+  addressApiResult = new radweb.StringColumn();
+  private _lastString: string;
+  private _lastGeo: GeocodeInformation;
+  getGeocodeInformation() {
+    if (this._lastString == this.addressApiResult.value)
+      return this._lastGeo ? this._lastGeo : new GeocodeInformation();
+    this._lastString = this.addressApiResult.value;
+    return this._lastGeo = GeocodeInformation.fromString(this.addressApiResult.value);
+  }
+  async doSaveStuff() {
+    if (this.address.value != this.address.originalValue || !this.getGeocodeInformation().ok()) {
+      let geo = await GetGeoInformation(this.address.value);
+      this.addressApiResult.value = geo.saveToString();
+      if (geo.ok()) {
+      }
+    }
+  }
+
+  constructor() {
+    super(() => new ApplicationSettings(), evilStatics.openedDataApi, 'ApplicationSettings')
+    this.initColumns(this.id);
+  }
+  private static _settings: ApplicationSettings;
+  static get() {
+    if (!this._settings) {
+      this._settings = new ApplicationSettings();
+      this._settings.source.find({}).then(s => this._settings = s[0]);
+    }
+    return this._settings;
+  }
+  static async getAsync(): Promise<ApplicationSettings> {
+    let a = new ApplicationSettings();
+    return (await a.source.find({}))[0];
+  }
+}
+export class ApplicationImages extends Entity<number>{
+  id = new radweb.NumberColumn();
+
+  base64Icon = new radweb.StringColumn("איקון דף base64");
+  base64PhoneHomeImage = new radweb.StringColumn("איקון דף הבית בטלפון base64");
+  constructor() {
+    super(() => new ApplicationImages(), evilStatics.dataSource, 'ApplicationImages')
+    this.initColumns(this.id);
+  }
+  private static _settings: ApplicationImages;
+  static get() {
+    if (!this._settings) {
+      this._settings = new ApplicationImages();
+      this._settings.source.find({}).then(s => this._settings = s[0]);
+    }
+    return this._settings;
+  }
+  static async getAsync(): Promise<ApplicationImages> {
+    let a = new ApplicationImages();
+    return (await a.source.find({}))[0];
   }
 }

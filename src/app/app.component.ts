@@ -4,6 +4,7 @@ import { AuthService } from './auth/auth-service';
 import { LoggedInGuard, dummyRoute } from './auth/auth-guard';
 import { MatSidenav, MAT_AUTOCOMPLETE_VALUE_ACCESSOR } from '@angular/material';
 import { SelectService } from './select-popup/select-service';
+import { ApplicationSettings } from './models';
 
 
 @Component({
@@ -24,7 +25,7 @@ export class AppComponent {
 
     if (!window.location.hostname.toLocaleLowerCase().startsWith('hmey')) {
       this.toolbarColor = 'accent';
-      this.toolbarText = 'הדגמת אתר אמהות מחבקות';
+      
     }
     
     auth.auth.tokenInfoChanged = ()=>dialog.refreshEventListener(this.auth.auth.info&&this.auth.auth.info.admin);
@@ -39,13 +40,16 @@ export class AppComponent {
       name = route.data.name;
     return name;
   }
+  getLogo(){
+    return ApplicationSettings.get().logoUrl.value;
+  }
   currentTitle() {
     if (this.activeRoute && this.activeRoute.snapshot && this.activeRoute.firstChild && this.activeRoute.firstChild.data && this.activeRoute.snapshot.firstChild.data.name)
       return this.activeRoute.snapshot.firstChild.data.name;;
-    return this.toolbarText;
+    return ApplicationSettings.get().organisationName.value;
   }
   toolbarColor = 'primary';
-  toolbarText = 'סלי תקווה';
+  
   signOut() {
 
     this.routeClicked();
