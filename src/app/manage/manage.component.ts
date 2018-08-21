@@ -1,9 +1,15 @@
 import { Component, OnInit } from '@angular/core';
-import { BasketType, FamilySources, ApplicationSettings, ApplicationImages } from '../models';
+
+import { ApplicationImages } from "./ApplicationImages";
+import { FamilySources } from "../families/FamilySources";
+import { BasketType } from "../families/BasketType";
 import { GridSettings } from 'radweb';
 import { SelectService } from '../select-popup/select-service';
 import { AuthService } from '../auth/auth-service';
 import { SendSmsAction } from '../asign-family/send-sms-action';
+import { ApplicationSettings } from './ApplicationSettings';
+import { Route } from '@angular/router';
+import { AdminGuard } from '../auth/auth-guard';
 
 @Component({
   selector: 'app-manage',
@@ -11,7 +17,11 @@ import { SendSmsAction } from '../asign-family/send-sms-action';
   styleUrls: ['./manage.component.scss']
 })
 export class ManageComponent implements OnInit {
-
+  static route: Route = {
+    path: 'manage',
+    component: ManageComponent,
+    data: { name: 'הגדרות מערכת' }, canActivate: [AdminGuard]
+  }
 
   basketType = new GridSettings(new BasketType(), {
     columnSettings: x => [

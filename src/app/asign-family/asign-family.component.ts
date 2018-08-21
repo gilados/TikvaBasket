@@ -1,6 +1,11 @@
 import { Component, OnInit, ViewChild } from '@angular/core';
 import { GridSettings, ColumnHashSet } from 'radweb';
-import { Families, Language, Helpers, DeliveryStatus, BasketType, YesNo } from '../models';
+import { Families } from '../families/families';
+import { DeliveryStatus } from "../families/DeliveryStatus";
+import { YesNo } from "../families/YesNo";
+import { Language } from "../families/Language";
+import { BasketType } from "../families/BasketType";
+import { Helpers } from '../helpers/helpers';
 import { AuthService } from '../auth/auth-service';
 import { SelectService } from '../select-popup/select-service';
 import { AddBoxAction } from './add-box-action';
@@ -9,6 +14,8 @@ import { SendSmsAction } from './send-sms-action';
 import { GetBasketStatusAction, BasketInfo, CityInfo } from './get-basket-status-action';
 import { MapComponent } from '../map/map.component';
 import { environment } from '../../environments/environment';
+import { Route } from '@angular/router';
+import { AdminGuard } from '../auth/auth-guard';
 
 
 @Component({
@@ -17,7 +24,9 @@ import { environment } from '../../environments/environment';
   styleUrls: ['./asign-family.component.scss']
 })
 export class AsignFamilyComponent implements OnInit {
-
+  static route: Route = {
+    path: 'assign-families', component: AsignFamilyComponent, canActivate: [AdminGuard], data: { name: 'שיוך משפחות' }
+  };
 
   async searchPhone() {
     this.name = undefined;
@@ -45,6 +54,11 @@ export class AsignFamilyComponent implements OnInit {
   }
   assignmentCanceled() {
     this.refreshBaskets();
+  }
+  smsSent() {
+    this.dialog.Info("הודעת SMS נשלחה ל" + this.name);
+    this.phone = '';
+    this.name = '';
   }
 
   async refreshBaskets() {
@@ -100,8 +114,8 @@ export class AsignFamilyComponent implements OnInit {
 
 
   constructor(private auth: AuthService, private dialog: SelectService) {
-    
-   }
+
+  }
 
   ngOnInit() {
     if (!environment.production) {

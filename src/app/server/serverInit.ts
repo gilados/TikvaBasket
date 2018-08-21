@@ -1,11 +1,47 @@
 import { Pool } from 'pg';
+import { Helpers } from '../helpers/helpers';
 import { config } from 'dotenv';
 import { PostgresDataProvider, PostgrestSchemaBuilder } from 'radweb/server';
+
 import { evilStatics } from '../auth/evil-statics';
-import * as models from './../models';
+
+
+
 import { foreachSync } from '../shared/utils';
+import { Families } from '../families/families';
+import { FamilySources } from "../families/FamilySources";
+import { BasketType } from "../families/BasketType";
+import { ApplicationSettings } from '../manage/ApplicationSettings';
+import { DeliveryEvents } from '../delivery-events/delivery-events';
+import { EventHelpers, Events, Items } from '../events/Events';
+import { ItemsPerHelper } from '../event-item-helpers/ItemsPerHelper';
+import { FamilyDeliveryEvents } from '../delivery-events/FamilyDeliveryEvents';
+import { ApplicationImages } from '../manage/ApplicationImages';
+import { HelpersAndStats } from '../delivery-follow-up/HelpersAndStats';
+import { NewsUpdate } from '../news/NewsUpdate';
+import { FamilyDeliveryEventsView } from '../families/FamilyDeliveryEventsView';
+
+
+export var allEntities =()=> [
+    new Events(),
+    new EventHelpers(),
+    new Helpers(),
+    new Items(),
+    new ItemsPerHelper(),
+    new Families(),
+    new BasketType(),
+    new FamilySources(),
+    new DeliveryEvents(),
+    new FamilyDeliveryEvents(),
+    new ApplicationSettings(),
+    new ApplicationImages(),
+    new HelpersAndStats(),
+    new NewsUpdate(),
+    new FamilyDeliveryEventsView()
+];
 
 export async function serverInit() {
+
     config();
     let ssl = true;
     if (process.env.DISABLE_POSTGRES_SSL)
@@ -20,32 +56,19 @@ export async function serverInit() {
         ssl: ssl
     });
     evilStatics.dataSource = new PostgresDataProvider(pool);
-    evilStatics.openedDataApi = new PostgresDataProvider(pool);
+
 
 
     var sb = new PostgrestSchemaBuilder(pool);
-    foreachSync([
-        new models.Events(),
-        new models.EventHelpers(),
-        new models.Helpers(),
-        new models.Items(),
-        new models.ItemsPerHelper(),
-        new models.Families(),
-        new models.BasketType(),
-        new models.FamilySources(),
-        new models.DeliveryEvents(),
-        new models.FamilyDeliveryEvents(),
-        new models.ApplicationSettings(),
-        new models.ApplicationImages()
-    ], async x => await sb.CreateIfNotExist(x));
+    await foreachSync(allEntities(), async x => {
+        if (x.__getDbName().toLowerCase().indexOf('from ') < 0) {
+            await sb.CreateIfNotExist(x);
+            await sb.verifyAllColumns(x);
+        }
+    });
 
-    await sb.verifyAllColumns(new models.Families());
-    await sb.verifyAllColumns(new models.Helpers());
-    await sb.verifyAllColumns(new models.DeliveryEvents());
-    await sb.verifyAllColumns(new models.FamilyDeliveryEvents());
-    await sb.verifyAllColumns(new models.ApplicationSettings());
-    await sb.verifyAllColumns(new models.ApplicationImages());
-    let h = new models.BasketType();
+
+    let h = new BasketType();
     await h.source.find({ where: h.id.isEqualTo('') }).then(x => {
         if (x.length == 0) {
             h.setEmptyIdForNewRow();
@@ -53,15 +76,15 @@ export async function serverInit() {
             h.save();
         }
     });
-    
 
-    let f = new models.Families();
+
+    let f = new Families();
     console.log('fix city start');
     await foreachSync(await f.source.find({ where: f.city.isEqualTo('') }), async ff => {
         ff.city.value = ff.getGeocodeInformation().getCity();
         await ff.save();
     });
-    let de = new models.DeliveryEvents();
+    let de = new DeliveryEvents();
     if (await de.source.count() == 0) {
         de.name.value = 'אירוע החלוקה הראשון';
         de.isActiveEvent.value = true;
@@ -69,7 +92,7 @@ export async function serverInit() {
         await de.save();
     }
 
-    let settings = new models.ApplicationSettings();
+    let settings = new ApplicationSettings();
     if ((await settings.source.count()) == 0) {
         settings.id.value = 1;
         settings.organisationName.value = 'שם הארגון שלי';
@@ -77,11 +100,10 @@ export async function serverInit() {
         settings.smsText.value = 'שלום !משנע!\n לחלוקת חבילות !ארגון! לחץ על: !אתר! \nתודה !שולח!';
         await settings.save();
     }
-    let images = new models.ApplicationImages();
-    if ((await images.source.count())==0)
-    {
+    let images = new ApplicationImages();
+    if ((await images.source.count()) == 0) {
         images.id.value = 1;
-        
+
         await images.save();
 
     }

@@ -1,8 +1,13 @@
 import { Component, OnInit } from '@angular/core';
 import { GridSettings, SelectPopup } from 'radweb';
-import { Helpers, FamilyDeliveryEventsView, Families } from '../models';
+import { FamilyDeliveryEventsView } from "../families/FamilyDeliveryEventsView";
+
+import { Helpers } from './helpers';
 import { SelectService } from '../select-popup/select-service';
 import { ResetPasswordAction } from './reset-password';
+import { Families } from '../families/families';
+import { Route } from '@angular/router';
+import { AdminGuard } from '../auth/auth-guard';
 
 @Component({
   selector: 'app-helpers',
@@ -10,6 +15,11 @@ import { ResetPasswordAction } from './reset-password';
   styleUrls: ['./helpers.component.css']
 })
 export class HelpersComponent implements OnInit {
+  static route: Route = {
+    path: 'helpers',
+    component: HelpersComponent,
+    data: { name: 'מתנדבות' }, canActivate: [AdminGuard]
+  };
 
   helpers = new GridSettings(new Helpers(), {
     allowDelete: true,

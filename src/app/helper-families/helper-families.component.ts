@@ -1,7 +1,8 @@
 import { Component, OnInit, Input, ViewChild, Output, EventEmitter } from '@angular/core';
 import { UserFamiliesList } from '../my-families/user-families';
 import { MapComponent } from '../map/map.component';
-import { DeliveryStatus, Families, Helpers } from '../models';
+import { Families } from '../families/families';
+import { DeliveryStatus } from "../families/DeliveryStatus";
 import { AuthService } from '../auth/auth-service';
 import { SelectService } from '../select-popup/select-service';
 import { SendSmsAction } from '../asign-family/send-sms-action';
@@ -19,6 +20,7 @@ export class HelperFamiliesComponent implements OnInit {
   @Input() partOfAssign = false;
   @Input() partOfReview = false;
   @Output() assignmentCanceled = new EventEmitter<void>();
+  @Output() assignSmsSent = new EventEmitter<void>();
   ngOnInit() {
     this.familyLists.setMap(this.map);
     
@@ -80,8 +82,9 @@ export class HelperFamiliesComponent implements OnInit {
 
     });
   }
-  sendSms(reminder: Boolean) {
-    new SendSmsAction().run({ helperId: this.familyLists.helperId, reminder: reminder });
+  async sendSms(reminder: Boolean) {
+    await new SendSmsAction().run({ helperId: this.familyLists.helperId, reminder: reminder });
+    this.assignSmsSent.emit();
     if (reminder)
       this.familyLists.helperOptional.reminderSmsDate.dateValue = new Date();
   }

@@ -1,10 +1,12 @@
 import { Component, OnInit, ViewChild, Sanitizer } from '@angular/core';
 import { GridSettings } from 'radweb';
-import { Families, Helpers, CallStatus, BasketType, FamilySources } from '../models';
+import { Families } from '../families/families';
 import { SelectService } from '../select-popup/select-service';
 import { GeocodeInformation, GetGeoInformation } from '../shared/googleApiHelpers';
-import { } from '@types/googlemaps';
+import { } from 'googlemaps';
 import { DomSanitizer } from '@angular/platform-browser';
+import { Route } from '@angular/router';
+import { AdminGuard } from '../auth/auth-guard';
 
 @Component({
   selector: 'app-fix-address',
@@ -12,6 +14,13 @@ import { DomSanitizer } from '@angular/platform-browser';
   styleUrls: ['./fix-address.component.scss']
 })
 export class FixAddressComponent implements OnInit {
+
+  static route:Route = {
+    path: 'addresses',
+    component: FixAddressComponent,
+    data: { name: 'טיוב כתובות' }, canActivate: [AdminGuard]
+  };
+
   gridView = true;
 
   families = new GridSettings(new Families(), {

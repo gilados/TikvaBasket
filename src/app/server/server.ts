@@ -1,4 +1,7 @@
-import * as models from './../models';
+
+import * as HelpersAndStats from "../delivery-follow-up/HelpersAndStats";
+import * as FamilyDeliveryEventsView from "../families/FamilyDeliveryEventsView";
+import * as ApplicationImages from "../manage/ApplicationImages";
 import * as express from 'express';
 import * as secure from 'express-force-https';
 import * as compression from 'compression';
@@ -10,13 +13,13 @@ import { LoginAction } from '../auth/loginAction';
 import { myAuthInfo } from '../auth/my-auth-info';
 import { evilStatics } from '../auth/evil-statics';
 import { ResetPasswordAction } from '../helpers/reset-password';
-import { helpersDataApi } from './helpers-dataapi';
+
 
 import { AddBoxAction } from '../asign-family/add-box-action';
 import { SendSmsAction } from '../asign-family/send-sms-action';
 import { LoginFromSmsAction } from '../login-from-sms/login-from-sms-action';
 import { GetBasketStatusAction } from '../asign-family/get-basket-status-action';
-import { serverInit } from './serverInit';
+import { serverInit, allEntities } from './serverInit';
 import { ServerEventAuthorizeAction } from './server-event-authorize-action';
 import { ServerEvents } from './server-events';
 import * as morgan from 'morgan';
@@ -24,16 +27,26 @@ import { SetDeliveryActiveAction } from '../delivery-events/set-delivery-active-
 import { CopyFamiliesToActiveEventAction } from '../delivery-events/copy-families-to-active-event-action';
 import { StatsAction } from '../families/stats-action';
 import { DeliveryStatsAction } from '../delivery-follow-up/delivery-stats';
+import { Helpers } from '../helpers/helpers';
+import { Families } from '../families/families';
+import { NewsUpdate } from "../news/NewsUpdate";
+import { FamilySources } from "../families/FamilySources";
+import { BasketType } from "../families/BasketType";
+import { ApplicationSettings } from '../manage/ApplicationSettings';
+import { DeliveryEvents } from '../delivery-events/delivery-events';
+import { Entity } from "radweb";
+import { entityWithApi, ApiAccess } from "./api-interfaces";
+import { DataApiRequest } from "radweb/utils/dataInterfaces1";
 
 
-serverInit().then(() => {
+serverInit().then(async () => {
 
 
     let app = express();
     //app.use(morgan('tiny')); 'logging';
     if (!process.env.DISABLE_SERVER_EVENTS) {
         let serverEvents = new ServerEvents(app);
-        models.Families.SendMessageToBrowsers = x => serverEvents.SendMessage(x);
+        Families.SendMessageToBrowsers = x => serverEvents.SendMessage(x);
         SetDeliveryActiveAction.SendMessageToBrowsers = x => serverEvents.SendMessage(x);
     }
 
@@ -46,98 +59,59 @@ serverInit().then(() => {
 
     let eb = new ExpressBridge<myAuthInfo>(app);
 
-    let openedData = eb.addArea('/openedDataApi');
-    let dataApi = eb.addArea('/dataApi', async x => x.authInfo != undefined);
-    let adminApi = eb.addArea('/dataApi', async x => x.authInfo && x.authInfo.admin);
-    let openActions = eb.addArea('');
-    let adminActions = eb.addArea('', async x => x.authInfo && x.authInfo.admin);
+    let allUsersAlsoNotLoggedIn = eb.addArea('/api');
+    let loggedInApi = eb.addArea('/api', async x => x.authInfo != undefined);
+    let adminApi = eb.addArea('/api', async x => x.authInfo && x.authInfo.admin);
 
     evilStatics.auth.tokenSignKey = process.env.TOKEN_SIGN_KEY;
 
-    evilStatics.auth.applyTo(eb, openActions);
-
-    openActions.addAction(new LoginAction());
-    openActions.addAction(new LoginFromSmsAction());
-    adminActions.addAction(new ResetPasswordAction());
-    adminActions.addAction(new AddBoxAction());
-    adminActions.addAction(new SendSmsAction());
-    adminActions.addAction(new GetBasketStatusAction());
-    adminActions.addAction(new ServerEventAuthorizeAction());
-    adminActions.addAction(new SetDeliveryActiveAction());
-    adminActions.addAction(new CopyFamiliesToActiveEventAction());
-    adminActions.addAction(new StatsAction());
-    adminActions.addAction(new DeliveryStatsAction());
-
-
-
-    openedData.add(r => helpersDataApi(r));
-    dataApi.add(r => new DataApi(new models.NewsUpdate()));
+    evilStatics.auth.applyTo(eb, allUsersAlsoNotLoggedIn);
 
     [
-        new models.BasketType(),
-        new models.FamilySources()
-    ].forEach(x => {
-        dataApi.add(r => new DataApi(x, {
-            allowDelete: r.authInfo && r.authInfo.admin,
-            allowInsert: r.authInfo && r.authInfo.admin,
-            allowUpdate: r.authInfo && r.authInfo.admin
-        }));
-    });
-    dataApi.add(r => {
-        var settings: DataApiSettings<models.Families> = {
-            allowDelete: r.authInfo && r.authInfo.admin,
-            allowInsert: r.authInfo && r.authInfo.admin,
-            allowUpdate: r.authInfo ? true : false,
-            readonlyColumns: f => {
-                if (r.authInfo) {
-                    if (r.authInfo.admin)
-                        return [];
-                    return f.__iterateColumns().filter(c => c != f.courierComments && c != f.deliverStatus);
-                }
-            },
-            excludeColumns: f => {
-                return f.excludeColumns(r.authInfo);
-            },
-            onSavingRow: async family => {
-                await family.doSaveStuff(r.authInfo);
-            },
-            get: {
-                where: f => {
-                    if (r.authInfo && !r.authInfo.admin)
-                        return f.courier.isEqualTo(r.authInfo.helperId);
-                    return undefined;
-                }
+        new LoginAction(),
+        new LoginFromSmsAction()
+    ].forEach(a => allUsersAlsoNotLoggedIn.addAction(a));
+
+    [
+        new ResetPasswordAction(),
+        new AddBoxAction(),
+        new SendSmsAction(),
+        new GetBasketStatusAction(),
+        new ServerEventAuthorizeAction(),
+        new SetDeliveryActiveAction(),
+        new CopyFamiliesToActiveEventAction(),
+        new StatsAction(),
+        new DeliveryStatsAction(),
+    ].forEach(a => adminApi.addAction(a));
+
+
+
+    //add Api Entries
+    allEntities().forEach(e => {
+        let x = <entityWithApi><any>e;
+        if (x && x.getDataApiSettings) {
+            let settings = x.getDataApiSettings();
+
+            let createApi: (r: DataApiRequest<myAuthInfo>) => DataApi<any> = r => new DataApi(e);
+            if (settings.apiSettings) {
+                createApi = r => new DataApi(e, settings.apiSettings(r.authInfo));
             }
-        };
 
+            switch (settings.apiAccess) {
+                case ApiAccess.all:
+                    allUsersAlsoNotLoggedIn.add(r => createApi(r));
+                    break;
+                case ApiAccess.loggedIn:
+                    loggedInApi.add(r => createApi(r));
+                    break;
+                case ApiAccess.AdminOnly:
+                default:
+                    adminApi.add(r => createApi(r));
+                    break;
+            }
+        }
+    });
 
-        return new DataApi(new models.Families(), settings)
-    });
-    adminApi.add(r => {
-        return new DataApi(new models.HelpersAndStats(), {
-            excludeColumns: h => [h.isAdmin, h.password, h.realStoredPassword, h.shortUrlKey, h.createDate]
-        });
-    });
-    openedData.add(r => {
-        return new DataApi(new models.ApplicationSettings(), {
-            allowUpdate: r.authInfo&&r.authInfo.admin,
-            onSavingRow: async as => await as.doSaveStuff()
-        });
-    });
-    adminApi.add(r => {
-        return new DataApi(new models.ApplicationImages(), {
-            allowUpdate: true,
-        });
-    });
-    adminApi.add(r => {
-        return new DataApi(new models.FamilyDeliveryEventsView(), {});
-    });
-    adminApi.add(r => new DataApi(new models.DeliveryEvents(), {
-        readonlyColumns: de => [de.isActiveEvent],
-        onSavingRow: async de => await de.doSaveStuff(r.authInfo),
-        allowUpdate: true,
-        allowInsert: true
-    }));
 
 
 
@@ -163,7 +137,7 @@ serverInit().then(() => {
         res.send(result);
     });
     app.use('/assets/apple-touch-icon.png', async (req, res) => {
-        let imageBase = (await models.ApplicationImages.getAsync()).base64PhoneHomeImage.value;
+        let imageBase = (await ApplicationImages.ApplicationImages.getAsync()).base64PhoneHomeImage.value;
         res.contentType('png');
         if (imageBase) {
             try {
@@ -182,7 +156,7 @@ serverInit().then(() => {
     });
     app.use('/favicon.ico', async (req, res) => {
         res.contentType('ico');
-        let imageBase = (await models.ApplicationImages.getAsync()).base64Icon.value;
+        let imageBase = (await ApplicationImages.ApplicationImages.getAsync()).base64Icon.value;
         if (imageBase) {
             try {
                 res.send(Buffer.from(imageBase, 'base64'));
@@ -201,7 +175,7 @@ serverInit().then(() => {
     async function sendIndex(res: express.Response) {
         const index = 'dist/index.html';
         if (fs.existsSync(index)) {
-            let x = (await models.ApplicationSettings.getAsync()).organisationName.value;
+            let x = (await ApplicationSettings.getAsync()).organisationName.value;
 
             res.send(fs.readFileSync(index).toString().replace('!TITLE!', x));
         }

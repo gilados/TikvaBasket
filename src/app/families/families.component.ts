@@ -1,6 +1,13 @@
-import { Component, OnInit, ViewChild, Sanitizer } from '@angular/core';
+import { Component, OnInit, ViewChild } from '@angular/core';
 import { GridSettings, ColumnSetting, ColumnHashSet, Filter, AndFilter } from 'radweb';
-import { Families, Helpers, CallStatus, BasketType, FamilySources, DeliveryStatus, HasAsyncGetTheValue, Language, YesNo, FamilyDeliveryEventsView } from '../models';
+import { FamilyDeliveryEventsView } from "./FamilyDeliveryEventsView";
+import { Families } from './families';
+import { DeliveryStatus } from "./DeliveryStatus";
+import { CallStatus } from "./CallStatus";
+import { YesNo } from "./YesNo";
+import { Language } from "./Language";
+import { FamilySources } from "./FamilySources";
+import { BasketType } from "./BasketType";
 import { SelectService } from '../select-popup/select-service';
 import { GeocodeInformation, GetGeoInformation } from '../shared/googleApiHelpers';
 
@@ -9,11 +16,15 @@ import * as XLSX from 'xlsx';
 import { FilterBase } from 'radweb/utils/dataInterfaces1';
 import { foreachEntityItem, foreachSync } from '../shared/utils';
 import { BusyService } from '../select-popup/busy-service';
-import { async } from '../../../node_modules/@types/q';
+import { async } from 'q';
 import * as chart from 'chart.js';
-import { Stats, FaimilyStatistics } from './stats-action';
-import { MatTabGroup } from '../../../node_modules/@angular/material';
+import { Stats, FaimilyStatistics, colors } from './stats-action';
+import { MatTabGroup } from '@angular/material';
 import { reuseComponentOnNavigationAndCallMeWhenNavigatingToIt } from '../custom-reuse-controller-router-strategy';
+import { HasAsyncGetTheValue } from '../model-shared/types';
+import { Helpers } from '../helpers/helpers';
+import { Route } from '@angular/router';
+import { AdminGuard } from '../auth/auth-guard';
 
 @Component({
   selector: 'app-families',
@@ -21,6 +32,7 @@ import { reuseComponentOnNavigationAndCallMeWhenNavigatingToIt } from '../custom
   styleUrls: ['./families.component.scss']
 })
 export class FamiliesComponent implements OnInit {
+
   limit = 10;
 
   filterBy(s: FaimilyStatistics) {
@@ -354,6 +366,14 @@ export class FamiliesComponent implements OnInit {
   ngOnDestroy(): void {
     this.onDestroy();
   }
+  basketStats: statsOnTab = {
+    name: 'טרם שויכו לפי סלים',
+    rule: f => f.deliverStatus.isEqualTo(DeliveryStatus.ReadyForDelivery.id).and(f.courier.isEqualTo('')),
+    stats: [
+      this.stats.ready,
+      this.stats.special
+    ]
+  };
   statTabs: statsOnTab[] = [
     {
       name: 'באירוע',
@@ -367,7 +387,8 @@ export class FamiliesComponent implements OnInit {
         this.stats.frozen
       ]
     },
-
+    this.basketStats
+    ,
     {
       name: 'הערות',
       rule: f => f.deliverStatus.IsDifferentFrom(DeliveryStatus.NotInEvent.id),
@@ -413,14 +434,26 @@ export class FamiliesComponent implements OnInit {
       if (s.value > 0) {
         this.pieChartLabels.push(s.name + ' ' + s.value);
         this.pieChartData.push(s.value);
-        this.colors[0].backgroundColor.push(s.color);
+        if (s.color != undefined)
+          this.colors[0].backgroundColor.push(s.color);
         this.pieChartStatObjects.push(s);
       }
     });
+    if (this.colors[0].backgroundColor.length == 0) {
+      this.colors[0].backgroundColor.push(colors.green, colors.blue, colors.yellow, colors.red, colors.orange, colors.gray);
+    }
   }
   refreshStats() {
 
-    this.busy.donotWait(async () => this.stats.getData().then(() => {
+    this.busy.donotWait(async () => this.stats.getData().then(baskets => {
+      this.basketStats.stats.splice(0);
+      baskets.forEach(b => {
+        let fs = new FaimilyStatistics(b.name, f => f.deliverStatus.isEqualTo(DeliveryStatus.ReadyForDelivery.id).and(f.courier.isEqualTo('').and(f.basketType.isEqualTo(b.id))), undefined);
+        fs.value = b.unassignedFamilies;
+        this.basketStats.stats.push(fs);
+
+      });
+
       this.updateChart();
     }));
   }
@@ -438,22 +471,23 @@ export class FamiliesComponent implements OnInit {
     return r;
   }
 
-
-  static route = 'families';
-  static caption = 'משפחות';
-
   [reuseComponentOnNavigationAndCallMeWhenNavigatingToIt]() {
     this.families.getRecords();
     this.refreshStats();
   }
 
+  static route: Route = {
+    path: 'families',
+    component: FamiliesComponent,
+    data: { name: 'משפחות' }, canActivate: [AdminGuard]
+  }
 
 }
 
 interface statsOnTab {
   name: string,
   stats: FaimilyStatistics[],
-  rule: (f: Families) => Filter
+  rule: (f: Families) => FilterBase
 }
 
 

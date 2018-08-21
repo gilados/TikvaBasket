@@ -1,9 +1,11 @@
 import { Component, OnInit } from '@angular/core';
 import { foreachSync, foreachEntityItem } from '../../shared/utils';
-import { Helpers, ApplicationSettings } from '../../models';
+
 import { SelectService } from '../../select-popup/select-service';
 import { AuthService } from '../../auth/auth-service';
-import { Router } from '@angular/router';
+import { Router, Route } from '@angular/router';
+import { ApplicationSettings } from '../../manage/ApplicationSettings';
+import { evilStatics } from '../../auth/evil-statics';
 
 @Component({
   selector: 'app-login',
@@ -11,7 +13,7 @@ import { Router } from '@angular/router';
   styleUrls: ['./login.component.scss']
 })
 export class LoginComponent implements OnInit {
-
+  static route: Route = { path: 'login', component: LoginComponent, data: { name: 'כניסה' } };
   constructor(
     private dialog: SelectService,
     private auth: AuthService,
@@ -30,6 +32,6 @@ export class LoginComponent implements OnInit {
 
   }
   register() {
-    this.router.navigate(['/register']);
+    this.router.navigate([evilStatics.routes.register]);
   }
 }

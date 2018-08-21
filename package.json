@@ -21,13 +21,15 @@
     "e2e": "ng e2e",
     "ngrok": "ngrok http 3000 --host-header localhost",
     "server:build": "tsc -p tsconfig.server.json",
+    "typeScript:build": "tsc -p tsconfig.json",
     "server:execute": "node dist-server/src/app/server/server.js",
     "preserver:debug": "npm run server:build",
     "server:debug": "node --inspect --debug-brk dist-server/src/app/server/server.js",
     "preRunSomething": "npm run server:build",
     "RunSomething": "node --inspect --debug-brk dist-server/src/app/server/doSomething.js",
     "server:start": "npm run server:build && npm run server:execute",
-    "server:watch": "concurrently \"tsc -P tsconfig.server.json -w\" \"nodemon dist-server/src/app/server/server.js --ignore /appData --ignore /dist\""
+    "server:watch": "concurrently \"tsc -P tsconfig.server.json -w\" \"nodemon dist-server/src/app/server/server.js --ignore /appData --ignore /dist\"",
+    "test-ang-compile": "ngc"
   },
   "private": true,
   "dependencies": {
@@ -77,7 +79,7 @@
     "password-hash": "^1.2.2",
     "path": "^0.12.7",
     "pg": "^7.4.1",
-    "radweb": "^1.1.70",
+    "radweb": "^1.1.73",
     "rxjs": "^5.5.6",
     "uuid": "^3.2.1",
     "web-animations-js": "^2.3.1",

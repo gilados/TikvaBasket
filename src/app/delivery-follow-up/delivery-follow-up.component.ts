@@ -1,11 +1,14 @@
 import { Component, OnInit } from '@angular/core';
-import { HelpersAndStats, Helpers } from '../models';
+import { HelpersAndStats } from "./HelpersAndStats";
 import { GridSettings, DateTimeColumn, AndFilter } from 'radweb';
 import { UserFamiliesList } from '../my-families/user-families';
 import * as chart from 'chart.js';
 import { DeliveryStatistic, DeliveryStats } from './delivery-stats';
 import { BusyService } from '../select-popup/busy-service';
-import { FilterBase } from '../../../node_modules/radweb/utils/dataInterfaces1';
+import { FilterBase } from 'radweb/utils/dataInterfaces1';
+import { Helpers } from '../helpers/helpers';
+import { Route } from '@angular/router';
+import { AdminGuard } from '../auth/auth-guard';
 
 @Component({
   selector: 'app-delivery-follow-up',
@@ -13,7 +16,9 @@ import { FilterBase } from '../../../node_modules/radweb/utils/dataInterfaces1';
   styleUrls: ['./delivery-follow-up.component.scss']
 })
 export class DeliveryFollowUpComponent implements OnInit {
-
+  static route: Route = {
+    path: 'delivery-follow-up', component: DeliveryFollowUpComponent, canActivate: [AdminGuard], data: { name: 'מעקב משנעים' }
+  }
 
   familyLists = new UserFamiliesList();
   selectCourier(c: Helpers) {

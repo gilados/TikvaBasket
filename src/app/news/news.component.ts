@@ -1,7 +1,10 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
-import { NewsUpdate, DeliveryStatus, DeliveryStatusColumn, changeDate, HelperId } from '../models';
+import { NewsUpdate } from "./NewsUpdate";
+import { DeliveryStatus } from "../families/DeliveryStatus";
 import { StringColumn } from 'radweb';
 import { SelectService } from '../select-popup/select-service';
+import { AdminGuard } from '../auth/auth-guard';
+import { Route } from '@angular/router';
 
 @Component({
   selector: 'app-news',
@@ -9,7 +12,9 @@ import { SelectService } from '../select-popup/select-service';
   styleUrls: ['./news.component.scss']
 })
 export class NewsComponent implements OnInit, OnDestroy {
-
+  static route:Route = {
+    path: 'news', component: NewsComponent, canActivate: [AdminGuard], data: { name: 'חדשות' }
+  };
   onDestroy = () => { };
   constructor(dialog: SelectService) {
     let y = dialog.newsUpdate.subscribe(() => {
