@@ -1,11 +1,12 @@
 import { Component, OnInit } from '@angular/core';
 import { foreachSync, foreachEntityItem } from '../../shared/utils';
 
-import { SelectService } from '../../select-popup/select-service';
+import { DialogService } from '../../select-popup/dialog';
 import { AuthService } from '../../auth/auth-service';
 import { Router, Route } from '@angular/router';
 import { ApplicationSettings } from '../../manage/ApplicationSettings';
 import { evilStatics } from '../../auth/evil-statics';
+import { Context } from '../../shared/context';
 
 @Component({
   selector: 'app-login',
@@ -15,9 +16,10 @@ import { evilStatics } from '../../auth/evil-statics';
 export class LoginComponent implements OnInit {
   static route: Route = { path: 'login', component: LoginComponent, data: { name: 'כניסה' } };
   constructor(
-    private dialog: SelectService,
+    private dialog: DialogService,
     private auth: AuthService,
-    private router: Router
+    private router: Router,
+    private context:Context
   ) { }
   user: string;
   password: string;
@@ -25,7 +27,7 @@ export class LoginComponent implements OnInit {
   ngOnInit() {
   }
   getLogo() {
-    return ApplicationSettings.get().logoUrl.value;
+    return ApplicationSettings.get(this.context).logoUrl.value;
   }
   login() {
     this.auth.login(this.user, this.password, this.remember, () => this.password = '');

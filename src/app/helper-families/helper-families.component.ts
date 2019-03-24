@@ -4,9 +4,12 @@ import { MapComponent } from '../map/map.component';
 import { Families } from '../families/families';
 import { DeliveryStatus } from "../families/DeliveryStatus";
 import { AuthService } from '../auth/auth-service';
-import { SelectService } from '../select-popup/select-service';
+import { DialogService } from '../select-popup/dialog';
 import { SendSmsAction } from '../asign-family/send-sms-action';
 import { Router } from '@angular/router';
+import { SelectService } from '../select-popup/select-service';
+import { ApplicationSettings } from '../manage/ApplicationSettings';
+import { Context } from '../shared/context';
 
 @Component({
   selector: 'app-helper-families',
@@ -15,7 +18,7 @@ import { Router } from '@angular/router';
 })
 export class HelperFamiliesComponent implements OnInit {
 
-  constructor(public auth: AuthService, private dialog: SelectService, private router: Router) { }
+  constructor(public auth: AuthService, private dialog: DialogService, private router: Router, private selectService: SelectService, private context: Context) { }
   @Input() familyLists: UserFamiliesList;
   @Input() partOfAssign = false;
   @Input() partOfReview = false;
@@ -23,18 +26,15 @@ export class HelperFamiliesComponent implements OnInit {
   @Output() assignSmsSent = new EventEmitter<void>();
   ngOnInit() {
     this.familyLists.setMap(this.map);
-    
+
   }
   async cancelAssign(f: Families) {
-    f.courier.value = '';
-
-    await f.save();
     this.familyLists.reload();
     this.assignmentCanceled.emit();
-
   }
+  allDoneMessage() { return ApplicationSettings.get(this.context).messageForDoneDelivery.value; };
   async deliveredToFamily(f: Families) {
-    this.dialog.displayComment({
+    this.selectService.displayComment({
       comment: f.courierComments.value,
       assignerName: f.courierAssignUserName.value,
       assignerPhone: f.courierAssignUserPhone.value,
@@ -44,6 +44,9 @@ export class HelperFamiliesComponent implements OnInit {
         try {
           await f.save();
           this.initFamilies();
+          if (this.familyLists.toDeliver.length == 0) {
+            this.dialog.YesNoQuestion(this.allDoneMessage());
+          }
 
         }
         catch (err) {
@@ -58,8 +61,11 @@ export class HelperFamiliesComponent implements OnInit {
     this.familyLists.initFamilies();
 
   }
+  showLeftFamilies() {
+    return this.partOfAssign || this.partOfReview || this.familyLists.toDeliver.length > 0;
+  }
   async couldntDeliverToFamily(f: Families) {
-    this.dialog.displayComment({
+    this.selectService.displayComment({
       comment: f.courierComments.value,
       showFailStatus: true,
       assignerName: f.courierAssignUserName.value,
@@ -83,14 +89,14 @@ export class HelperFamiliesComponent implements OnInit {
     });
   }
   async sendSms(reminder: Boolean) {
-    await new SendSmsAction().run({ helperId: this.familyLists.helperId, reminder: reminder });
+    await SendSmsAction.SendSms(this.familyLists.helperId, reminder);
     this.assignSmsSent.emit();
     if (reminder)
       this.familyLists.helperOptional.reminderSmsDate.dateValue = new Date();
   }
 
   updateComment(f: Families) {
-    this.dialog.displayComment({
+    this.selectService.displayComment({
       comment: f.courierComments.value,
       assignerName: f.courierAssignUserName.value,
       assignerPhone: f.courierAssignUserPhone.value,

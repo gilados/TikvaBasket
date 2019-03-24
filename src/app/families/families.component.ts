@@ -1,5 +1,5 @@
-import { Component, OnInit, ViewChild } from '@angular/core';
-import { GridSettings, ColumnSetting, ColumnHashSet, Filter, AndFilter } from 'radweb';
+import { Component, OnInit, ViewChild, Input } from '@angular/core';
+import { ColumnHashSet, AndFilter, ColumnSetting } from 'radweb';
 import { FamilyDeliveryEventsView } from "./FamilyDeliveryEventsView";
 import { Families } from './families';
 import { DeliveryStatus } from "./DeliveryStatus";
@@ -9,14 +9,14 @@ import { Language } from "./Language";
 import { FamilySources } from "./FamilySources";
 import { BasketType } from "./BasketType";
 import { SelectService } from '../select-popup/select-service';
+import { DialogService } from '../select-popup/dialog';
 import { GeocodeInformation, GetGeoInformation } from '../shared/googleApiHelpers';
 
 import { DomSanitizer } from '@angular/platform-browser';
 import * as XLSX from 'xlsx';
-import { FilterBase } from 'radweb/utils/dataInterfaces1';
-import { foreachEntityItem, foreachSync } from '../shared/utils';
+import { FilterBase } from 'radweb';
+import { foreachSync } from '../shared/utils';
 import { BusyService } from '../select-popup/busy-service';
-import { async } from 'q';
 import * as chart from 'chart.js';
 import { Stats, FaimilyStatistics, colors } from './stats-action';
 import { MatTabGroup } from '@angular/material';
@@ -24,17 +24,39 @@ import { reuseComponentOnNavigationAndCallMeWhenNavigatingToIt } from '../custom
 import { HasAsyncGetTheValue } from '../model-shared/types';
 import { Helpers } from '../helpers/helpers';
 import { Route } from '@angular/router';
-import { AdminGuard } from '../auth/auth-guard';
+import { HolidayDeliveryAdmin } from '../auth/auth-guard';
+import { Context } from '../shared/context';
+import { Routable, componentRoutingInfo } from '../shared/routing-helper';
 
 @Component({
   selector: 'app-families',
   templateUrl: './families.component.html',
   styleUrls: ['./families.component.scss']
 })
+@Routable({
+  path: 'families',
+  caption: 'משפחות',
+  canActivate: [HolidayDeliveryAdmin]
+})
 export class FamiliesComponent implements OnInit {
-
+  @Input() problemOnly = false;
   limit = 10;
+  addressByGoogleColumn: ColumnSetting<Families>;
+  familyNameColumn: ColumnSetting<Families>;
+  familyAddressColumn: ColumnSetting<Families>;
+  addressCommentColumn: ColumnSetting<Families>;
+  constructor(private dialog: DialogService, private san: DomSanitizer, public busy: BusyService, private context: Context, private selectService: SelectService) {
+    this.doTest();
 
+    let y = dialog.newsUpdate.subscribe(() => {
+      this.refreshStats();
+    });
+    this.onDestroy = () => {
+      y.unsubscribe();
+    };
+    if (dialog.isScreenSmall())
+      this.gridView = false;
+  }
   filterBy(s: FaimilyStatistics) {
     this.families.get({
       where: s.rule,
@@ -94,8 +116,8 @@ export class FamiliesComponent implements OnInit {
     let data = [];
     let title = [];
     let doneTitle = false;
-    let f = new Families();
-    await foreachSync(await f.source.find({ limit: 5000, orderBy: [f.name] })
+
+    await foreachSync(await this.context.for(Families).find({ limit: 5000, orderBy: f => [f.name] })
       , async  f => {
         let row = [];
 
@@ -132,25 +154,14 @@ export class FamiliesComponent implements OnInit {
     XLSX.writeFile(wb, 'משפחות.xlsx');
     return;
   }
-  familyDeliveryEventsView = new FamilyDeliveryEventsView();
+
   previousDeliveryEvents: FamilyDeliveryEventsView[] = [];
-  families = new GridSettings(new Families(), {
+  families = this.context.for(Families).gridSettings({
 
     allowUpdate: true,
     allowInsert: true,
-    rowCssClass: f => {
-      switch (f.deliverStatus.listValue) {
-        case DeliveryStatus.Success:
-          return 'deliveredOk';
-        case DeliveryStatus.FailedBadAddress:
-        case DeliveryStatus.FailedNotHome:
-        case DeliveryStatus.FailedOther:
-          return 'deliveredProblem';
-        default:
-          return '';
-      }
-    },
-    numOfColumnsInGrid: 5,
+    rowCssClass: f => f.deliverStatus.getCss(),
+    numOfColumnsInGrid: 4,
     onEnterRow: async f => {
       if (f.isNew()) {
         f.basketType.value = '';
@@ -160,8 +171,6 @@ export class FamiliesComponent implements OnInit {
         f.special.listValue = YesNo.No;
       } else {
 
-        await this.busy.donotWait(async () =>
-          this.previousDeliveryEvents = await this.familyDeliveryEventsView.source.find({ where: this.familyDeliveryEventsView.family.isEqualTo(f.id), orderBy: [{ column: this.familyDeliveryEventsView.deliveryDate, descending: true }] }));
       }
     },
 
@@ -190,78 +199,102 @@ export class FamiliesComponent implements OnInit {
         if (this.searchString) {
           addFilter(f.name.isContains(this.searchString));
         }
+        if (this.problemOnly) {
+          addFilter(f.addressOk.isEqualTo(false));
+        }
         return result;
       }
       , orderBy: f => f.name
     },
     hideDataArea: true,
     knowTotalRows: true,
-    columnSettings: families => [
+    allowDelete: true,
 
-      {
-        column: families.name,
-        width: '150'
-      },
+    confirmDelete: (h, yes) => this.dialog.confirmDelete('משפחת ' + h.name.value, yes),
+    columnSettings: families => {
+      return [
 
-      {
-        column: families.familyMembers,
-        width: '50'
-      },
-      {
-        column: families.language,
-        dropDown: {
-          items: families.language.getOptions()
+        this.familyNameColumn = {
+          column: families.name,
+          width: '200'
         },
-        width: '100'
-      },
-      {
-        column: families.basketType,
-        dropDown: { source: new BasketType() },
-        width: '100'
-      },
+        this.familyAddressColumn = {
+          column: families.address,
+          width:'250',
+          cssClass: f => {
+            if (f.getGeocodeInformation().partialMatch())
+              return 'addressProblem';
+            return '';
+          }
+        },
+        {
+          column: families.basketType,
+          dropDown: { source: this.context.for(BasketType).create() },
+          width: '100'
+        },
+        {
+          caption: 'שינוע',
+          getValue: f => f.getDeliveryDescription(),
+          width: '200'
+        },
 
-      {
-        caption: 'שינוע',
-        getValue: f => f.getDeliveryDescription()
-      }, {
-        column: families.familySource,
-        dropDown: { source: new FamilySources() }
-      },
-      families.internalComment,
-      families.deliveryComments,
-      families.special.getColumn(),
-      families.createUser,
-      families.createDate,
-      families.address,
-      families.floor,
-      families.appartment,
-      families.addressComment,
-      families.city,
-      families.addressByGoogle(),
-      families.phone1,
-      families.phone1Description,
-      families.phone2,
-      families.phone2Description,
-      families.courier.getColumn(this.dialog),
-      {
-        caption: 'טלפון משנע',
-        getValue: f => f.lookup(new Helpers(), f.courier).phone.value
-      },
-      families.courierAssignUser,
-      families.courierAssingTime,
-      families.deliverStatus.getColumn(),
-      families.deliveryStatusUser,
-      families.deliveryStatusDate,
-      families.courierComments,
-      families.callHelper,
-      families.callTime,
-      families.callComments,
-    ],
+        {
+          column: families.familyMembers,
+
+        },
+        {
+          column: families.language,
+          dropDown: {
+            items: families.language.getOptions()
+          },
+
+        }, {
+          column: families.familySource,
+          dropDown: { source: this.context.for(FamilySources).create() }
+        },
+        families.internalComment,
+        families.iDinExcel,
+        families.deliveryComments,
+        families.special.getColumn(),
+        families.createUser,
+        families.createDate,
+
+        families.addressOk,
+        families.floor,
+        families.appartment,
+        this.addressCommentColumn = { column: families.addressComment },
+        families.city,
+        this.addressByGoogleColumn = families.addressByGoogle(),
+        families.phone1,
+        families.phone1Description,
+        families.phone2,
+        families.phone2Description,
+        families.courier.getColumn(this.selectService),
+        {
+          caption: 'טלפון משנע',
+          getValue: f => this.context.for(Helpers).lookup(f.courier).phone.value
+        },
+        families.courierAssignUser,
+        families.courierAssingTime,
+        families.deliverStatus.getColumn(),
+        families.deliveryStatusUser,
+        families.deliveryStatusDate,
+        families.courierComments,
+        families.getPreviousDeliveryColumn(),
+
+      ];
+    },
     rowButtons: [
       {
         name: '',
         cssClass: 'btn glyphicon glyphicon-pencil',
         click: f => this.gridView = !this.gridView
+      },
+      {
+        name: 'חפש כתובת בגוגל',
+        cssClass:'btn btn-success',
+        click: f => f.openGoogleMaps(),
+        visible:f=>this.problemOnly
       },
       {
         cssClass: 'btn glyphicon glyphicon-check',
@@ -275,99 +308,28 @@ export class FamiliesComponent implements OnInit {
       }
     ]
   });
-  familiesInfo = this.families.addArea({
-    columnSettings: families => [
-      families.name,
-      families.familyMembers,
-      {
-        column: families.language,
-        dropDown: {
-          items: families.language.getOptions()
-        }
-      },
-      {
-        column: families.basketType,
-        dropDown: { source: new BasketType() }
-      },
-      {
-        column: families.familySource,
-        dropDown: { source: new FamilySources() }
-      },
-      families.internalComment,
-      families.deliveryComments,
-      families.special.getColumn(),
-      families.createUser,
-      families.createDate
 
-
-
-
-    ],
-  });
-  familiesAddress = this.families.addArea({
-    columnSettings: families => [
-      families.address,
-      families.floor,
-      families.appartment,
-      families.addressComment,
-      families.city
-    ]
-  });
-  phones = this.families.addArea({
-    columnSettings: families => [
-      families.phone1,
-      families.phone1Description,
-      families.phone2,
-      families.phone2Description
-    ]
-  });
-  callInfo = this.families.addArea({
-    columnSettings: families => [
-      {
-        column: families.callStatus,
-        dropDown: {
-          items: families.callStatus.getOptions()
-        }
-      },
-      families.callHelper,
-      families.callTime,
-      families.callComments,
-    ]
-  })
-  deliverInfo = this.families.addArea({
-    columnSettings: families => [
-      families.courier.getColumn(this.dialog),
-      {
-        caption: 'טלפון משנע',
-        getValue: f => f.lookup(new Helpers(), f.courier).phone.value
-      },
-      families.courierAssignUser,
-      families.courierAssingTime,
-      families.deliverStatus.getColumn(),
-      families.deliveryStatusUser,
-      families.deliveryStatusDate,
-      families.courierComments,
-    ]
-  });
   gridView = true;
-  constructor(private dialog: SelectService, private san: DomSanitizer, public busy: BusyService) {
 
-    let y = dialog.newsUpdate.subscribe(() => {
-      this.refreshStats();
-    });
-    this.onDestroy = () => {
-      y.unsubscribe();
-    };
-    if (dialog.isScreenSmall())
-      this.gridView = false;
+
+  async doTest() {
   }
+
   onDestroy = () => { };
 
   ngOnDestroy(): void {
     this.onDestroy();
   }
   basketStats: statsOnTab = {
-    name: 'טרם שויכו לפי סלים',
+    name: 'נותרו לפי סלים',
+    rule: f => f.deliverStatus.isEqualTo(DeliveryStatus.ReadyForDelivery.id).and(f.courier.isEqualTo('')),
+    stats: [
+      this.stats.ready,
+      this.stats.special
+    ]
+  };
+  cityStats: statsOnTab = {
+    name: 'נותרו לפי ערים',
     rule: f => f.deliverStatus.isEqualTo(DeliveryStatus.ReadyForDelivery.id).and(f.courier.isEqualTo('')),
     stats: [
       this.stats.ready,
@@ -387,14 +349,14 @@ export class FamiliesComponent implements OnInit {
         this.stats.frozen
       ]
     },
-    this.basketStats
-    ,
+    this.cityStats,
+    this.basketStats,
+
     {
       name: 'הערות',
-      rule: f => f.deliverStatus.IsDifferentFrom(DeliveryStatus.NotInEvent.id),
+      rule: f => f.deliverStatus.IsDifferentFrom(DeliveryStatus.NotInEvent.id).and(f.courierComments.IsDifferentFrom('')),
       stats: [
-        this.stats.deliveryComments,
-        this.stats.phoneComments
+        this.stats.deliveryComments
       ]
     },
     {
@@ -404,18 +366,7 @@ export class FamiliesComponent implements OnInit {
         this.stats.currentEvent,
         this.stats.notInEvent
       ]
-    }/*,
-    {
-      name: 'טלפניות',
-      rule: f => f.deliverStatus.IsDifferentFrom(DeliveryStatus.NotInEvent.id),
-      stats: [
-        this.stats.phoneReady,
-        this.stats.phoneAssigned,
-        this.stats.phoneOk,
-        this.stats.phoneFailed
-      ]
-    }*/
-
+    }
   ]
   tabChanged() {
     this.currentStatFilter = undefined;
@@ -437,31 +388,59 @@ export class FamiliesComponent implements OnInit {
         if (s.color != undefined)
           this.colors[0].backgroundColor.push(s.color);
         this.pieChartStatObjects.push(s);
+
       }
     });
+    if (this.pieChartData.length == 0) {
+      this.pieChartData.push(0);
+      this.pieChartLabels.push('ריק');
+    }
     if (this.colors[0].backgroundColor.length == 0) {
       this.colors[0].backgroundColor.push(colors.green, colors.blue, colors.yellow, colors.red, colors.orange, colors.gray);
     }
   }
   refreshStats() {
+    if (!this.problemOnly)
+      this.busy.donotWait(async () => this.stats.getData().then(st => {
+        this.basketStats.stats.splice(0);
+        this.cityStats.stats.splice(0);
+        st.baskets.forEach(b => {
+          let fs = new FaimilyStatistics(b.name, f => f.deliverStatus.isEqualTo(DeliveryStatus.ReadyForDelivery.id).and(f.courier.isEqualTo('').and(f.basketType.isEqualTo(b.id))), undefined);
+          fs.value = b.unassignedFamilies;
+          this.basketStats.stats.push(fs);
 
-    this.busy.donotWait(async () => this.stats.getData().then(baskets => {
-      this.basketStats.stats.splice(0);
-      baskets.forEach(b => {
-        let fs = new FaimilyStatistics(b.name, f => f.deliverStatus.isEqualTo(DeliveryStatus.ReadyForDelivery.id).and(f.courier.isEqualTo('').and(f.basketType.isEqualTo(b.id))), undefined);
-        fs.value = b.unassignedFamilies;
-        this.basketStats.stats.push(fs);
+        });
+        st.cities.forEach(b => {
+          let fs = new FaimilyStatistics(b.name, f => f.deliverStatus.isEqualTo(DeliveryStatus.ReadyForDelivery.id).and(f.courier.isEqualTo('').and(f.city.isEqualTo(b.name))), undefined);
+          fs.value = b.count;
+          this.cityStats.stats.push(fs);
 
-      });
+        });
 
-      this.updateChart();
-    }));
+        this.updateChart();
+      }));
   }
   @ViewChild('myTab') myTab: MatTabGroup;
 
   ngOnInit() {
 
     this.refreshStats();
+    if (this.problemOnly) {
+      let cols = this.families.columns;
+      let problemColumns = [
+        this.familyNameColumn,
+        this.addressByGoogleColumn,
+        this.familyAddressColumn,
+        this.addressCommentColumn
+      ];
+      for (let index = 0; index < problemColumns.length; index++) {
+        const item = problemColumns[index];
+        let origIndex = cols.items.indexOf(item);
+        cols.moveCol(item, -origIndex+index);  
+      }
+      
+      //  debugger;
+    }
 
 
   }
@@ -472,6 +451,9 @@ export class FamiliesComponent implements OnInit {
   }
 
   [reuseComponentOnNavigationAndCallMeWhenNavigatingToIt]() {
+    this.refresh();
+  }
+  refresh() {
     this.families.getRecords();
     this.refreshStats();
   }
@@ -479,7 +461,7 @@ export class FamiliesComponent implements OnInit {
   static route: Route = {
     path: 'families',
     component: FamiliesComponent,
-    data: { name: 'משפחות' }, canActivate: [AdminGuard]
+    data: { name: 'משפחות' }, canActivate: [HolidayDeliveryAdmin]
   }
 
 }
@@ -489,6 +471,3 @@ interface statsOnTab {
   stats: FaimilyStatistics[],
   rule: (f: Families) => FilterBase
 }
-
-
-
