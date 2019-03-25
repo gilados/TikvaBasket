@@ -43,7 +43,7 @@ async function getGeolocationInfo() {
 }
 async function ImportFromExcel() {
 
-    let wb = XLSX.readFile("C:\\Users\\Yoni\\Downloads\\מרץ 2.xls");
+    let wb = XLSX.readFile("C:\\temp\\hesed.xlsx");
     let s = wb.Sheets[wb.SheetNames[0]];
     let o = XLSX.utils.sheet_to_json(s);
     let context = new ServerContext();
@@ -57,10 +57,10 @@ async function ImportFromExcel() {
                     return '';
                 return r[x];
             };
-        //  await  readMerkazMazonFamily(context, r, get);
+          await  readHesedFamily(context, r, get);
         }
         catch (err) {
-            console.log(err, r);
+            console.error(err, r);
         }
 
     });
@@ -89,6 +89,38 @@ async function readMerkazMazonFamily(context: ServerContext, o: any, get: (key: 
     }
     f.address.value = get('כתובת') + ' ' + get('בית')+' '+get('עיר');
     f.name.value = get('איש קשר');
+    f.familyMembers.value = +get('מס נפשות');
+    let helperName = get('מתנדב קבוע');
+    if (helperName){
+        let h = await context.for(Helpers).lookupAsync(h=>h.name.isEqualTo(helperName));
+        if (h.isNew()){
+            f.internalComment.value = 'מתנדב לא נמצא בקליטה - '+helperName;
+        }
+        else{
+            f.courier.value = h.id.value;
+        }
+    }
+    f.deliveryComments.value = get('הערות');
+    await f.save();
+
+
+
+}
+
+async function readHesedFamily(context: ServerContext, o: any, get: (key: string) => string) {
+    let f = context.for(Families).create();
+    f.phone1.value = get('טלפון');
+    f.phone2.value = get('טלפון נוסף');
+    f.name.value = get('שם');
+    f.floor.value = get('קומה');
+    f.city.value = get('עיר');
+    f.addressComment.value = get('הערה לכתובת');
+    f.appartment.value = get('דירה');
+    let knisa = get('כניסה');
+    if (knisa) {
+        f.addressComment.value = 'כניסה ' + knisa;
+    }
+    f.address.value = get('כתובת') + ' ' + get('בית')+' '+get('עיר');
     f.familyMembers.value = +get('מס נפשות');
     let helperName = get('מתנדב קבוע');
     if (helperName){
