@@ -114,25 +114,14 @@ async function readHesedFamily(context: ServerContext, o: any, get: (key: string
     f.name.value = get('שם');
     f.floor.value = get('קומה');
     f.city.value = get('עיר');
+    f.basketType.value=get('קוד')
     f.addressComment.value = get('הערה לכתובת');
     f.appartment.value = get('דירה');
-    let knisa = get('כניסה');
-    if (knisa) {
-        f.addressComment.value = 'כניסה ' + knisa;
-    }
     f.address.value = get('כתובת') + ' ' + get('בית')+' '+get('עיר');
-    f.familyMembers.value = +get('מס נפשות');
-    let helperName = get('מתנדב קבוע');
-    if (helperName){
-        let h = await context.for(Helpers).lookupAsync(h=>h.name.isEqualTo(helperName));
-        if (h.isNew()){
-            f.internalComment.value = 'מתנדב לא נמצא בקליטה - '+helperName;
-        }
-        else{
-            f.courier.value = h.id.value;
-        }
-    }
+
     f.deliveryComments.value = get('הערות');
+    if(f.deliveryComments.value =='באים לקחת')
+        f.special.value=1;
     await f.save();
 
 
