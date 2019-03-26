@@ -48,7 +48,7 @@ export class FamiliesComponent implements OnInit {
   constructor(private dialog: DialogService, private san: DomSanitizer, public busy: BusyService, private context: Context, private selectService: SelectService) {
     this.doTest();
 
-    let y = dialog.newsUpdate.subscribe(() => {
+    let y = dialog.refreshStatusStats.subscribe(() => {
       this.refreshStats();
     });
     this.onDestroy = () => {
@@ -252,7 +252,10 @@ export class FamiliesComponent implements OnInit {
           column: families.familySource,
           dropDown: { source: this.context.for(FamilySources).create() }
         },
-        families.internalComment,
+        {
+          column: families.internalComment,
+          width: '300'
+        },
         families.iDinExcel,
         families.deliveryComments,
         families.special.getColumn(),
@@ -270,6 +273,7 @@ export class FamiliesComponent implements OnInit {
         families.phone2,
         families.phone2Description,
         families.courier.getColumn(this.selectService),
+        families.fixedCourier.getColumn(this.selectService),
         {
           caption: 'טלפון משנע',
           getValue: f => this.context.for(Helpers).lookup(f.courier).phone.value
