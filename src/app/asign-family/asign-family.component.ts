@@ -258,7 +258,7 @@ export class AsignFamilyComponent implements OnInit {
     );
 
     for (let c of await context.for(CitiesStats).find({
-      orderBy: ff => [{ column: ff.families, descending: true }]
+      orderBy: ff => [{ column: ff.city }]
     })) {
       var ci = {
         name: c.city.value,
@@ -283,7 +283,7 @@ export class AsignFamilyComponent implements OnInit {
         result.baskets.push(bi);
     }
     result.baskets.sort((a, b) => b.unassignedFamilies - a.unassignedFamilies);
-    result.cities.sort((a, b) => b.unassignedFamilies - a.unassignedFamilies);
+
     console.timeEnd('getBasketStatus');
     return result;
   }
@@ -473,7 +473,11 @@ export class AsignFamilyComponent implements OnInit {
   }
   addFamily(filter: (f: Families) => FilterBase, analyticsName: string) {
     this.selectService.selectFamily({
-      where: f => filter(f),
+      where: f => {
+        if (this.filterCity)
+          return f.city.isEqualTo(this.filterCity).and(filter(f));
+        return filter(f);
+      },
       onSelect: async f => {
         if (!this.id) {
           let helper = await this.context.for(Helpers).lookupAsync(h => h.phone.isEqualTo(this.phone));
@@ -491,7 +495,7 @@ export class AsignFamilyComponent implements OnInit {
         let ok = async () => {
           f.courier.value = this.id;
           f.deliverStatus.listValue = DeliveryStatus.ReadyForDelivery;
-          this.dialog.analytics('assign family special');
+          this.dialog.analytics(analyticsName);
           await f.save();
           this.refreshList();
           this.doRefreshRoute();
