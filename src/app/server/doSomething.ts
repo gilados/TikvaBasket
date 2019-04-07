@@ -355,7 +355,7 @@ async function readHesedFamily(context: ServerContext, o: any, get: (key: string
     f.addressComment.value = get('הערה לכתובת');
     f.appartment.value = get('דירה');
     f.address.value = get('כתובת') + ' ' + get('בית') + ' ' + get('עיר');
-
+    f.language.value= +get('יורדים');
     f.deliveryComments.value = get('הערות');
     if (f.deliveryComments.value == 'באים לקחת' || f.deliveryComments.value == 'מתנדב אדלר'|| f.deliveryComments.value == 'למחסן')
         f.special.value = 1;
