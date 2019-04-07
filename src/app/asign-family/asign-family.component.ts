@@ -125,9 +125,9 @@ export class AsignFamilyComponent implements OnInit {
   familyLists = new UserFamiliesList(this.context);
   filterLangulage = -1;
   langulages: Language[] = [
-    new Language(-1, 'כל השפות'),
+    new Language(-1, 'נגישות'),
     Language.Hebrew,
-    Language.Amharit,
+    
     Language.Russian
   ];
   phone: string;

@@ -23,11 +23,11 @@ export async function DoIt() {
         let context = new ServerContext();
         let f = await context.for(Helpers).count();
         let name = (await ApplicationSettings.getAsync(context)).organisationName.value;
-        
 
-        ImportFromExcelBasedOnLetters();
 
-        //     await ImportFromExcel();
+        //ImportFromExcelBasedOnLetters();
+
+             ImportFromExcel();
     }
     catch (err) {
         console.error(err);
@@ -49,7 +49,7 @@ async function getGeolocationInfo() {
 }
 async function ImportFromExcel() {
 
-    let wb = XLSX.readFile("C:\\Users\\Yoni\\Downloads\\פסח.xls");
+    let wb = XLSX.readFile("C:\\temp\\hesed2019.xlsx");
     for (let sheetIndex = 0; sheetIndex < 1; sheetIndex++) {
         const element = wb.SheetNames[sheetIndex];
         let s = wb.Sheets[element];
@@ -65,7 +65,7 @@ async function ImportFromExcel() {
                         return '';
                     return r[x];
                 };
-                await readHesedFamily(context,o,get);
+                await readHesedFamily(context, o, get);
                 //await ReadNRUNFamilies(context, r, element, ++i, get);
             }
             catch (err) {
@@ -259,14 +259,38 @@ async function readHesedFamily(context: ServerContext, o: any, get: (key: string
     f.name.value = get('שם');
     f.floor.value = get('קומה');
     f.city.value = get('עיר');
-    f.basketType.value=get('קוד')
+    f.basketType.value = get('קוד')
     f.addressComment.value = get('הערה לכתובת');
     f.appartment.value = get('דירה');
-    f.address.value = get('כתובת') + ' ' + get('בית')+' '+get('עיר');
+    f.address.value = get('כתובת') + ' ' + get('בית') + ' ' + get('עיר');
 
     f.deliveryComments.value = get('הערות');
-    if(f.deliveryComments.value =='באים לקחת')
-        f.special.value=1;
+    if (f.deliveryComments.value == 'באים לקחת' || f.deliveryComments.value == 'מתנדב אדלר'|| f.deliveryComments.value == 'למחסן')
+        f.special.value = 1;
+    var kamut = get('כמות');
+    var sal = get('קוד');
+    if (kamut == '1') {
+
+    }
+    if (kamut == '2') {
+        sal += ' כפול';
+    }
+    else {
+        f.deliveryComments.value += ', כמות סלים - ' + kamut;
+    }
+    var tavim = get('תוים');
+    if (tavim == '1')
+        sal += ' + תו';
+    var x = await context.for(BasketType).lookupAsync(b => b.name.isEqualTo(sal));
+    if (x.isNew()) {
+        x.id.value = sal;
+        x.name.value = sal;
+        await x.save();
+    }
+
+    f.basketType.value = x.id.value;
+
+
     await f.save();
 
 
